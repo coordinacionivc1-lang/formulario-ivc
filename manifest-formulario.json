@@ -1,0 +1,14 @@
+{
+  "name": "Formulario IVC Usaquén",
+  "short_name": "Formulario IVC",
+  "description": "Reportes de operativos IVC · Alcaldía Local de Usaquén",
+  "start_url": "formulario.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FFF6CC",
+  "theme_color": "#B3121F",
+  "lang": "es",
+  "icons": [
+    { "src": "logos/alcaldia_mayor_bogota.png", "sizes": "136x135", "type": "image/png" }
+  ]
+}

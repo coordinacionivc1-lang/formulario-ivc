@@ -1,0 +1,66 @@
+/* Formulario IVC (celular primero). Usa los tokens de estilos.css. */
+.form-ivc { max-width: 760px; }
+.form-ivc label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 14px; }
+.form-ivc .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin: 10px 0; }
+.form-ivc .ancho { grid-column: 1 / -1; }
+.form-ivc input, .form-ivc select, .form-ivc textarea { font-size: 16px; padding: 10px 11px; } /* 16px evita el zoom automático en iPhone */
+.form-ivc .req { color: var(--rojo); }
+.form-ivc .nota { color: var(--tinta-2); font-size: 13px; margin: 4px 0; }
+.form-ivc .nota.alerta { color: var(--alerta); }
+.form-ivc fieldset { border: 1px solid var(--linea); border-radius: 8px; padding: 10px 12px; margin: 12px 0; min-width: 0; }
+.form-ivc legend { font-weight: 600; font-size: 14px; padding: 0 4px; }
+.form-ivc .opcion { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; border: 1px solid var(--linea); border-radius: 8px; padding: 9px 12px; margin: 4px 6px 4px 0; display: inline-flex; cursor: pointer; background: var(--panel); }
+.form-ivc .opcion input { width: auto; margin: 0; accent-color: #B3121F; }
+.form-ivc .opcion.marcada { border-color: var(--rojo); background: var(--rojo-suave); }
+.form-ivc .sino .opcion { min-width: 88px; justify-content: center; }
+.form-ivc .multiple .opcion { display: flex; margin: 6px 0; }
+.form-ivc .poligonos { max-height: 340px; overflow-y: auto; margin-top: 8px; }
+.form-ivc .actividad { border: 1px solid var(--linea); border-left: 5px solid var(--amarillo); border-radius: 8px; padding: 12px; margin: 0 0 16px; background: var(--panel); }
+.form-ivc .subbloque { border: 1px dashed var(--linea); border-radius: 8px; padding: 10px; margin: 8px 0; }
+.form-ivc .cabecera { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.form-ivc h4 { margin: 14px 0 4px; font-size: 15px; }
+.form-ivc .pasos { display: flex; gap: 4px; list-style: none; padding: 0; margin: 8px 0 12px; overflow-x: auto; }
+.form-ivc .pasos li button { border: none; border-bottom: 3px solid var(--linea); border-radius: 0; background: transparent; color: var(--tinta-2); white-space: nowrap; font-size: 13px; padding: 6px 8px; }
+.form-ivc .pasos li.hecho button { color: var(--ok); border-bottom-color: var(--ok); }
+.form-ivc .pasos li.actual button { color: var(--rojo); border-bottom-color: var(--amarillo); }
+.form-ivc .navegacion { justify-content: space-between; position: sticky; bottom: 0; background: var(--fondo); padding: 10px 0; margin: 0; }
+.form-ivc .navegacion button { padding: 11px 16px; font-size: 15px; }
+.form-ivc .guardado { color: var(--tinta-2); font-size: 13px; align-self: center; }
+.form-ivc .fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.form-ivc .miniatura { position: relative; margin: 0; width: 104px; height: 104px; border-radius: 8px; overflow: hidden; border: 1px solid var(--linea); }
+.form-ivc .miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.form-ivc .miniatura .quitar { position: absolute; top: 4px; right: 4px; padding: 2px 7px; background: rgba(0, 0, 0, .6); color: #fff; border: none; border-radius: 50%; }
+.form-ivc .agregar-foto { width: 104px; height: 104px; border: 2px dashed var(--rojo); border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--rojo); cursor: pointer; font-size: 13px; padding: 6px; }
+.form-ivc .agregar-foto input { display: none; }
+.form-ivc .etiqueta { font-weight: 600; font-size: 14px; margin-top: 10px; }
+.form-ivc .tipos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; }
+.form-ivc .tipo { flex-direction: column; padding: 18px 10px; font-size: 30px; justify-content: center; }
+.form-ivc .tipo span { font-size: 15px; }
+.form-ivc .reporte { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--linea); padding: 10px 0; }
+.form-ivc .resumen { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 4px 12px; margin: 0; }
+.form-ivc .resumen dt { color: var(--tinta-2); }
+.form-ivc .resumen dd { margin: 0; font-weight: 600; }
+.form-ivc .grande { font-size: 17px; padding: 13px 22px; }
+.form-ivc .enviar { justify-content: center; }
+.form-ivc .exito { border-top: 6px solid var(--ok); }
+/* Pestañas de actividades */
+.form-ivc .pestanas-act { display: flex; gap: 6px; overflow-x: auto; padding: 2px 0 10px; margin-bottom: 4px; }
+.form-ivc .pestanas-act button { white-space: nowrap; border-radius: 18px; padding: 7px 12px; font-size: 14px; font-weight: 600; flex: none; }
+.form-ivc .pestanas-act button.activa { background: #B3121F; color: #fff; border-color: #B3121F; }
+.form-ivc .pestanas-act button.agregar { border-style: dashed; }
+.form-ivc button.peligro { border-color: #7A1414; color: #7A1414; }
+.form-ivc .wa-texto { white-space: pre-wrap; font-family: inherit; font-size: 14px; background: #E7FFDB; color: #111B21; border-radius: 8px; padding: 10px 12px; border: 1px solid #c9eabd; }
+.form-ivc .agregar-actividad { width: 100%; justify-content: center; margin: 14px 0 4px; padding: 12px; border: 2px dashed var(--rojo); background: var(--panel); font-size: 15px; }
+.form-ivc .navegacion { margin-top: 18px; border-top: 1px solid var(--linea); }
+
+/* Modo sin conexión: estado de la conexión y fotos guardadas en el celular que aún no se suben */
+.sesion #conexion { display: inline-flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.form-ivc .miniatura { position: relative; }
+.form-ivc .estado-foto { position: absolute; left: 4px; bottom: 4px; background: rgba(255,255,255,.9); border-radius: 10px; padding: 0 5px; font-size: 13px; }
+/* OK por actividad y envío a WhatsApp sin cerrar el operativo */
+.form-ivc .ok-actividad { margin-top: 14px; display: grid; gap: 4px; justify-items: start; }
+.form-ivc .whatsapp-actividad { margin-top: 14px; border: 2px solid #25D366; }
+.form-ivc .whatsapp-actividad .wa-texto { max-height: 320px; }
+/* Mis actividades programadas (Cronograma IVC) */
+.form-ivc .programadas .programada { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--linea); }
+.form-ivc .programadas .programada.atrasada { background: var(--rojo-suave); padding: 10px; border-radius: 6px; }

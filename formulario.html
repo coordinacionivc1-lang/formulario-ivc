@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Formulario IVC</title>
+  <link rel="icon" href="logos/alcaldia_mayor_bogota.png">
+  <link rel="stylesheet" href="estilos.css">
+  <link rel="stylesheet" href="formulario.css">
+  <link rel="manifest" href="manifest-formulario.json">
+  <meta name="theme-color" content="#B3121F">
+  <link rel="apple-touch-icon" href="logos/alcaldia_mayor_bogota.png">
+</head>
+<body>
+  <div class="franja"></div>
+  <header class="barra">
+    <div class="marca">
+      <span class="escudo"><img src="logos/alcaldia_mayor_bogota.png" alt="Alcaldía Mayor de Bogotá"></span>
+      <div>
+        <h1>Formulario IVC</h1>
+        <p>Grupo IVC Jurídico Policivo · Alcaldía Local de Usaquén</p>
+      </div>
+    </div>
+    <div id="sesion" class="sesion"></div>
+  </header>
+  <main id="vista" class="vista form-ivc"><p class="cargando">Cargando…</p></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <dialog id="dialogo"><form method="dialog" id="dialogo-form"></form></dialog>
+  <script src="formulario.js" type="module"></script>
+</body>
+</html>
