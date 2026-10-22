@@ -870,7 +870,7 @@ async function inicio({ retomar = false } = {}) {
   const locales = (await L.reportes(yo.id)).sort((a, b) => (b.actualizado || 0) - (a.actualizado || 0));
   const enCelular = new Set(locales.map((r) => r.lid));
   // Reportes que ya no están en este celular (confirmados, rechazados o hechos en otro equipo): solo se muestra su estado.
-  const otros = (leerJSON(`ivc_estados_${yo.id}`) || []).filter((e) => !enCelular.has(e.lid)).slice(0, 30);
+  const otros = (leerJSON(`ivc_estados_${yo.id}`) || []).filter((e) => !enCelular.has(e.lid) && e.estado !== 'Eliminado').slice(0, 30);
   const estadoDe = (r) => (r.enEspera ? 'En espera de envío' : r.error ? 'No se pudo enviar' : r.estado || 'Borrador');
   const nuevo = h('div', { class: 'panel' }, h('h2', {}, 'Nuevo reporte'), h('p', {}, 'Seleccione el tipo de operativo:'),
     h('div', { class: 'tipos' }, cat.tipos.map((t) => h('button', { type: 'button', class: 'tipo', onclick: () => nuevoReporte(t).catch((e) => aviso(e.message, true)) },
