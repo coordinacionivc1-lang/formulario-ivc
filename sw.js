@@ -1,7 +1,8 @@
 // Guarda en el celular los archivos del formulario para que abra sin internet (y sin el PC).
 // Solo atiende el formulario y sus archivos; los datos van al buzón de Google y nunca se guardan aquí.
 // Rutas relativas: funciona igual en GitHub Pages (…/ivc-formulario/) y en el PC (/formulario.html).
-const CACHE = 'ivc-formulario-v3';
+// Al cambiar archivos del formulario, suba este número: el celular baja todo junto y borra la copia anterior.
+const CACHE = 'ivc-formulario-v4';
 const ARCHIVOS = ['formulario.html', 'formulario.js', 'reglas-formulario.js', 'config-formulario.js', 'formulario.css', 'estilos.css',
   'logos/alcaldia_mayor_bogota.png', 'manifest-formulario.json'];
 const base = new URL('./', self.location).pathname;
@@ -32,5 +33,14 @@ self.addEventListener('fetch', (e) => {
   const raizDelFormulario = base !== '/' && (url.pathname === base || url.pathname === `${base}index.html`);
   const navegacion = e.request.mode === 'navigate' && (raizDelFormulario || url.pathname === `${base}formulario.html` || url.pathname.endsWith('/formulario') || url.pathname.endsWith('/form'));
   if (navegacion) { e.respondWith(copiaYActualiza(`${base}formulario.html`)); return; }
-  if (RUTAS.has(url.pathname)) e.respondWith(copiaYActualiza(url.pathname));
+  if (!RUTAS.has(url.pathname)) return;
+  e.respondWith((async () => {
+    // En el PC, el aplicativo de coordinación comparte estilos.css y el logo con el formulario: para él van
+    // siempre a la red, para que no vea una versión vieja de los estilos.
+    if (base === '/' && e.clientId) {
+      const cliente = await self.clients.get(e.clientId);
+      if (cliente && !/\/(formulario(\.html)?|form)$/.test(new URL(cliente.url).pathname)) return fetch(e.request);
+    }
+    return copiaYActualiza(url.pathname);
+  })());
 });

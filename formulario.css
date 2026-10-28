@@ -1,4 +1,29 @@
 /* Formulario IVC (celular primero). Usa los tokens de estilos.css. */
+/* El formulario de las gestoras conserva sus colores (rojo y amarillo de la Alcaldía), aunque el aplicativo de
+   coordinación use la paleta zafiro y escarlata: aquí se redefinen los tokens que comparten. */
+:root {
+  --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
+  --rojo: #B3121F; --rojo-2: #D32F3A; --rojo-suave: #FBE8E9; --amarillo: #FFD100; --amarillo-suave: #FFF6CC;
+  --tinta: #231A1B; --tinta-2: #5C4B4D; --linea: #EBD9DA; --panel: #FFFFFF; --fondo: var(--amarillo-suave);
+  --ok: #2E7D4F; --alerta: #B7791F; --error: #7A1414; --radio: 8px; --sombra: 0 1px 3px rgba(35, 26, 27, .12);
+  --f-titulo: inherit;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
+    --fondo: #1A1011; --panel: #2A1719; --rojo-suave: #3A2023; --tinta: #F5ECEC; --tinta-2: #CDB9BB; --linea: #4A3033;
+    --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #2E7D4F; --alerta: #B7791F; --error: #F2707A;
+  }
+}
+:root[data-theme="dark"] {
+  --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
+  --fondo: #1A1011; --panel: #2A1719; --rojo-suave: #3A2023; --tinta: #F5ECEC; --tinta-2: #CDB9BB; --linea: #4A3033;
+  --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #2E7D4F; --alerta: #B7791F; --error: #F2707A;
+}
+.escudo { box-shadow: none; width: 48px; height: 48px; }
+.barra h1 { font-size: 18px; font-weight: 700; }
+.barra p { font-size: 12.5px; color: #fff; opacity: .9; }
+
 .form-ivc { max-width: 760px; }
 .form-ivc label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: 14px; }
 .form-ivc .rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 12px; margin: 10px 0; }

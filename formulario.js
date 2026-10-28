@@ -307,7 +307,9 @@ async function comprimir(archivo) {
     const c = document.createElement('canvas');
     c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    img.close(); // libera la imagen grande de la memoria (celulares con poca RAM y varias fotos seguidas)
     const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.82));
+    c.width = 0; c.height = 0;
     return blob || archivo;
   } catch { return archivo; }
 }
@@ -337,18 +339,20 @@ function bloqueFotos({ actividad = null, cierre = false, max, min = null, titulo
   const propias = f.fotos.filter((x) => (cierre ? x.es_cierre : !x.es_cierre && x.actividad === actividad));
   const cont = h('div', { class: 'fotos' });
   const agregar = async (lista) => {
+    // Si la gestora sale a «Mis reportes» mientras se comprimen, las fotos siguen guardándose en SU reporte.
+    const rep = f;
     subiendo++;
     try {
       for (const archivo of lista) {
-        const ya = f.fotos.filter((x) => (cierre ? x.es_cierre : !x.es_cierre && x.actividad === actividad)).length;
+        const ya = rep.fotos.filter((x) => (cierre ? x.es_cierre : !x.es_cierre && x.actividad === actividad)).length;
         if (ya >= max) { aviso(cierre ? 'Solo una fotografía de cierre: quite la actual para reemplazarla.' : `Máximo ${max} fotografías ${que}.`, true); break; }
-        const foto = { fid: `f-${uid()}`, lid: f.lid, actividad: cierre ? null : actividad, es_cierre: cierre ? 1 : 0, blob: await comprimir(archivo), sid: null, quitar: false, error: null };
+        const foto = { fid: `f-${uid()}`, lid: rep.lid, actividad: cierre ? null : actividad, es_cierre: cierre ? 1 : 0, blob: await comprimir(archivo), sid: null, quitar: false, error: null };
         try { await L.ponerFoto(foto); } catch { aviso('No se pudo guardar la foto en este celular. Revise el espacio disponible.', true); break; }
-        f.fotos.push(foto);
-        pintar();
+        rep.fotos.push(foto);
+        if (f === rep) pintar();
       }
     } finally { subiendo--; }
-    await guardarLocal(); // la actividad debe llegar al servidor antes que sus fotos
+    if (f === rep) await guardarLocal(); // la actividad debe llegar al servidor antes que sus fotos
   };
   poner(cont, propias.map((x) => h('figure', { class: 'miniatura' },
     h('img', { src: srcFoto(x), alt: 'Fotografía adjunta', loading: 'lazy' }),
