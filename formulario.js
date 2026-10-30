@@ -476,7 +476,7 @@ const fotosDeActividad = (a) => f.fotos.filter((x) => !x.es_cierre && x.activida
 function erroresActividad(n) {
   const v = validarFormulario(f.tipo, { general: d().general, actividades: d().actividades, cierre: {} }, cat);
   const propio = (e) => e.startsWith(`Actividad ${n}:`) || e.startsWith(`Actividad ${n},`);
-  return [...v.errores.filter(propio), ...erroresFotos(v.actividades, f.fotos, f.tipo, cat).filter(propio)];
+  return v.errores.filter(propio); // las fotos no impiden el OK (coordinación revisa)
 }
 function textoActividadWhatsApp(a, n) {
   const g = d().general;
@@ -589,9 +589,9 @@ function pasoCierre() {
 // Revisión en el celular con las mismas reglas del servidor (funciona sin conexión).
 function revisar() {
   const v = validarFormulario(f.tipo, d(), cat);
-  v.errores.push(...erroresFotos(v.actividades, f.fotos, f.tipo, cat));
   for (const x of f.fotos.filter((y) => y.error)) v.errores.push(`Foto con problema: ${x.error}`);
-  return { errores: v.errores, consolidado: consolidado(f.tipo, v.actividades) };
+  // Las fotos que falten solo se avisan: el reporte se puede enviar y coordinación decide al revisarlo.
+  return { errores: v.errores, avisosFotos: erroresFotos(v.actividades, f.fotos, f.tipo, cat), consolidado: consolidado(f.tipo, v.actividades) };
 }
 function pasoVista(cont) {
   const r = revisar();
@@ -602,6 +602,7 @@ function pasoVista(cont) {
   poner(cont,
     r.errores.length ? h('div', { class: 'panel suave' }, h('b', {}, `Antes de enviar, complete (${r.errores.length}):`), h('ul', {}, r.errores.map((e) => h('li', {}, e))))
       : h('p', { class: 'chip ok' }, '✓ El formulario está completo.'),
+    r.avisosFotos.length ? h('div', { class: 'panel suave' }, h('b', {}, 'Fotografías (puede enviar igual; coordinación lo revisa):'), h('ul', {}, r.avisosFotos.map((e) => h('li', {}, e)))) : null,
     f.error ? h('p', { class: 'chip error' }, `El último envío no se pudo completar: ${f.error}`) : null,
     corrigiendo && f.observaciones ? h('p', { class: 'chip error' }, `Motivo: ${f.observaciones}`) : null,
     h('div', { class: 'panel' }, h('h3', {}, 'Datos generales'),
