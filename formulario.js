@@ -189,12 +189,31 @@ const base64De = (blob) => new Promise((ok, mal) => {
   lector.onerror = () => mal(lector.error);
   lector.readAsDataURL(blob);
 });
-// Sube al buzón las fotos que faltan (una por una) y luego el reporte completo.
+// Avance del envío en pantalla (para que la gestora no cierre ni bloquee el celular mientras suben las fotos)
+// y pantalla encendida mientras tanto: con la pantalla apagada el navegador detiene la subida.
+let bloqueoPantalla = null;
+async function mantenerPantalla(si) {
+  try {
+    if (si && !bloqueoPantalla && navigator.wakeLock) bloqueoPantalla = await navigator.wakeLock.request('screen');
+    if (!si && bloqueoPantalla) { await bloqueoPantalla.release(); bloqueoPantalla = null; }
+  } catch { bloqueoPantalla = null; }
+}
+function mostrarAvance(lid, hechas, total) {
+  const caja = $('#avance-envio');
+  if (!caja) return;
+  if (hechas === null) { caja.hidden = true; return; }
+  caja.hidden = false;
+  poner(caja, h('b', {}, total ? `📤 Subiendo fotos: ${hechas} de ${total}` : '📤 Enviando el reporte…'),
+    total ? h('progress', { max: total, value: hechas }) : null,
+    h('div', {}, '⚠️ No cierre el formulario ni bloquee el celular hasta ver «✅ Reporte enviado».'));
+}
+// Sube al buzón las fotos que faltan (varias a la vez) y luego el reporte completo.
 async function enviarAlBuzon(lid) {
   let r = await L.reporte(lid);
   if (!r?.enEspera) return;
   const o = { silencioso: true };
   for (const x of await L.fotos(lid)) if (x.quitar) await L.quitarFoto(x.fid);
+  const porSubir = [];
   for (const x of await L.fotos(lid)) {
     if (x.sid || x.error) continue;
     if (!(x.blob instanceof Blob) || !x.blob.size) {
@@ -204,11 +223,31 @@ async function enviarAlBuzon(lid) {
       diagnostico(lid, 'foto-sin-archivo', msg);
       continue;
     }
-    await buzon('buzon_foto', conPase({ lid, fid: x.fid, base64: await base64De(x.blob) }), { ...o, espera: 120_000 });
-    const nueva = { ...x, sid: 'buzon' }; // ya está en el buzón (el número del PC, si lo tenía, se conserva)
-    await L.ponerFoto(nueva);
-    if (f?.lid === lid) { const i = f.fotos.findIndex((y) => y.fid === x.fid); if (i >= 0) f.fotos[i] = nueva; }
+    porSubir.push(x);
   }
+  await mantenerPantalla(true);
+  try {
+    let siguiente = 0, hechas = 0, fallo = null;
+    mostrarAvance(lid, 0, porSubir.length);
+    await Promise.all(Array.from({ length: Math.min(3, porSubir.length) }, async () => {
+      while (!fallo && siguiente < porSubir.length) {
+        const x = porSubir[siguiente++];
+        try {
+          await buzon('buzon_foto', conPase({ lid, fid: x.fid, base64: await base64De(x.blob) }), { ...o, espera: 120_000 });
+        } catch (e) { fallo ||= e; return; }
+        const nueva = { ...x, sid: 'buzon' }; // ya está en el buzón (el número del PC, si lo tenía, se conserva)
+        await L.ponerFoto(nueva);
+        if (f?.lid === lid) { const i = f.fotos.findIndex((y) => y.fid === x.fid); if (i >= 0) f.fotos[i] = nueva; }
+        mostrarAvance(lid, ++hechas, porSubir.length);
+      }
+    }));
+    if (fallo) throw fallo;
+    mostrarAvance(lid, 0, 0);
+    await enviarSobre(lid, o);
+  } finally { mostrarAvance(lid, null); mantenerPantalla(false); }
+}
+async function enviarSobre(lid, o) {
+  let r;
   const fotos = (await L.fotos(lid)).filter((x) => !x.quitar);
   const conError = fotos.filter((x) => x.error);
   if (conError.length) { await actualizarReporte(lid, { enEspera: false, error: `Revise las fotos: ${conError[0].error}` }); return; }

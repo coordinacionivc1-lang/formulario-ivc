@@ -89,3 +89,8 @@
 /* Mis actividades programadas (Cronograma IVC) */
 .form-ivc .programadas .programada { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid var(--linea); }
 .form-ivc .programadas .programada.atrasada { background: var(--rojo-suave); padding: 10px; border-radius: 6px; }
+
+/* Avance del envío: fijo arriba para que la gestora no cierre el formulario mientras suben las fotos. */
+.avance-envio { position: sticky; top: 0; z-index: 40; background: #FFF4D6; border-bottom: 2px solid #E0A800; padding: 10px 14px; font-size: 15px; }
+.avance-envio[hidden] { display: none; }
+.avance-envio progress { display: block; width: 100%; height: 14px; margin: 6px 0; }
