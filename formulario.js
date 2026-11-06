@@ -537,24 +537,96 @@ function textoActividadWhatsApp(a, n) {
     '', '⏳ _Reporte en curso: pendiente de verificación por coordinación._',
   ].filter((x) => x !== null).join('\n');
 }
-async function archivoFoto(x, i, prefijo) {
-  let blob = x.blob;
-  if (!blob) {
-    const r = await fetch(srcFoto(x));
-    if (!r.ok) throw new Error('No se pudo cargar una foto: revise la conexión e intente de nuevo.');
-    blob = await r.blob();
-  }
-  return new File([blob], `${prefijo}-${i + 1}.jpg`, { type: 'image/jpeg' });
+function bloqueActividad(a, n) {
+  const g = d().general;
+  return { texto: textoActividadWhatsApp(a, n), fotos: fotosDeActividad(a), prefijo: `ID${g.id_operativo || ''}-actividad${n}`,
+    titulo: `ID ${g.id_operativo || '—'} · Actividad ${n} de ${d().actividades.length}`, subtitulo: [a.nombre, g.fecha && g.fecha.split('-').reverse().join('/')].filter(Boolean).join(' · ') };
 }
-async function compartirActividad(a, n) {
-  const texto = textoActividadWhatsApp(a, n);
+
+// ---------- Compartir en WhatsApp sin que se desordene ----------
+// WhatsApp publica cada foto como un mensaje aparte (el texto queda como pie de una sola) y en el grupo se mezclan con
+// las de otros. Por eso, por defecto, se comparte UNA imagen con todas las fotos numeradas y el texto como pie: llega
+// como un solo mensaje. Si se prefieren las fotos en tamaño completo, cada una va rotulada con ID, actividad y número.
+async function cargarImagen(blob) {
+  if (window.createImageBitmap) { try { return await createImageBitmap(blob, { imageOrientation: 'from-image' }); } catch { /* se intenta con <img> */ } }
+  const url = URL.createObjectURL(blob);
   try {
-    const prefijo = `ID${d().general.id_operativo || ''}-actividad${n}`.replace(/[^\w-]/g, '');
-    const files = await Promise.all(fotosDeActividad(a).map((x, i) => archivoFoto(x, i, prefijo)));
-    if (navigator.canShare && navigator.canShare({ files, text: texto })) { await navigator.share({ files, text: texto }); return; }
-    if (navigator.share) { await navigator.share({ text: texto }); aviso('Se compartió el texto; agregue las fotos desde WhatsApp.'); return; }
-    await copiarTexto(texto);
+    const img = new Image();
+    await new Promise((ok, mal) => { img.onload = ok; img.onerror = () => mal(new Error('No se pudo leer una foto.')); img.src = url; });
+    return img;
+  } finally { setTimeout(() => URL.revokeObjectURL(url), 1000); }
+}
+const lienzoAArchivo = (lienzo, nombre) => new Promise((ok, mal) => lienzo.toBlob((b) => (b ? ok(new File([b], nombre, { type: 'image/jpeg' })) : mal(new Error('No se pudo armar la imagen.'))), 'image/jpeg', 0.86));
+function textoAjustado(cx, t, ancho) {
+  let x = String(t || '');
+  while (x.length > 3 && cx.measureText(x).width > ancho) x = x.slice(0, -2);
+  return x === String(t || '') ? x : `${x.trimEnd()}…`;
+}
+async function blobDe(x) {
+  if (x.blob) return x.blob;
+  const r = await fetch(srcFoto(x));
+  if (!r.ok) throw new Error('No se pudo cargar una foto: revise la conexión e intente de nuevo.');
+  return r.blob();
+}
+// Una sola imagen: encabezado (ID, actividad, establecimiento) y las fotos en cuadrícula, numeradas.
+async function laminaFotos(b) {
+  const imgs = await Promise.all(b.fotos.map(async (x) => cargarImagen(await blobDe(x))));
+  const n = imgs.length;
+  const cols = n === 1 ? 1 : n <= 4 ? 2 : 3;
+  const filas = Math.ceil(n / cols);
+  const W = n === 1 ? 1200 : 600, H = n === 1 ? 900 : 450, M = 8, ENC = 120;
+  const lienzo = document.createElement('canvas');
+  lienzo.width = cols * W + (cols + 1) * M;
+  lienzo.height = ENC + filas * H + (filas + 1) * M;
+  const cx = lienzo.getContext('2d');
+  cx.fillStyle = '#ffffff'; cx.fillRect(0, 0, lienzo.width, lienzo.height);
+  cx.fillStyle = '#1B3F8B'; cx.fillRect(0, 0, lienzo.width, ENC);
+  cx.fillStyle = '#ffffff'; cx.textBaseline = 'middle';
+  cx.font = 'bold 44px sans-serif'; cx.fillText(textoAjustado(cx, b.titulo, lienzo.width - 40), 20, 40);
+  cx.font = '32px sans-serif'; cx.fillText(textoAjustado(cx, `${b.subtitulo || ''}${b.subtitulo ? ' · ' : ''}${n} foto(s)`, lienzo.width - 40), 20, 90);
+  imgs.forEach((img, i) => {
+    const x0 = M + (i % cols) * (W + M), y0 = ENC + M + Math.floor(i / cols) * (H + M);
+    cx.fillStyle = '#222'; cx.fillRect(x0, y0, W, H);
+    const k = Math.min(W / img.width, H / img.height); // la foto completa, sin recortar evidencia
+    const w = img.width * k, hh = img.height * k;
+    cx.drawImage(img, x0 + (W - w) / 2, y0 + (H - hh) / 2, w, hh);
+    cx.fillStyle = 'rgba(0,0,0,.65)'; cx.fillRect(x0, y0, 64, 52);
+    cx.fillStyle = '#fff'; cx.font = 'bold 34px sans-serif'; cx.fillText(String(i + 1), x0 + (i + 1 > 9 ? 10 : 20), y0 + 27);
+    img.close?.();
+  });
+  return lienzoAArchivo(lienzo, `${b.prefijo}-fotos.jpg`.replace(/[^\w.-]/g, ''));
+}
+// Foto suelta con una franja abajo: «ID 71208 · Actividad 3 de 8 · Cruz Verde · Foto 2 de 5».
+async function fotoRotulada(x, i, total, b) {
+  const img = await cargarImagen(await blobDe(x));
+  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const w = Math.round(img.width * k), hh = Math.round(img.height * k), F = Math.max(56, Math.round(w * 0.05));
+  const lienzo = document.createElement('canvas');
+  lienzo.width = w; lienzo.height = hh + F;
+  const cx = lienzo.getContext('2d');
+  cx.drawImage(img, 0, 0, w, hh);
+  img.close?.();
+  cx.fillStyle = '#1B3F8B'; cx.fillRect(0, hh, w, F);
+  cx.fillStyle = '#fff'; cx.textBaseline = 'middle'; cx.font = `bold ${Math.round(F * 0.42)}px sans-serif`;
+  cx.fillText(textoAjustado(cx, `${b.titulo} · ${b.subtitulo ? `${b.subtitulo} · ` : ''}Foto ${i + 1} de ${total}`, w - 24), 12, hh + F / 2);
+  return lienzoAArchivo(lienzo, `${b.prefijo}-${i + 1}.jpg`.replace(/[^\w.-]/g, ''));
+}
+async function compartirBloque(b, modo = 'lamina') {
+  aviso('Preparando las fotos…');
+  try {
+    const conFotos = b.fotos.length > 0;
+    const files = !conFotos ? [] : modo === 'lamina' ? [await laminaFotos(b)] : await Promise.all(b.fotos.map((x, i) => fotoRotulada(x, i, b.fotos.length, b)));
+    if (files.length && navigator.canShare && navigator.canShare({ files, text: b.texto })) { await navigator.share({ files, text: b.texto }); return; }
+    if (navigator.share) { await navigator.share({ text: b.texto }); if (files.length) aviso('Se compartió el texto; agregue las fotos desde WhatsApp.'); return; }
+    await copiarTexto(b.texto);
   } catch (e) { if (e?.name !== 'AbortError') aviso(e.message || 'No se pudo compartir', true); }
+}
+function botonesCompartir(b) {
+  const n = b.fotos.length;
+  return [
+    h('button', { type: 'button', class: 'principal grande', onclick: () => compartirBloque(b, 'lamina') }, n ? `📤 Compartir (1 imagen con las ${n} fotos)` : '📤 Compartir'),
+    n > 1 ? h('button', { type: 'button', onclick: () => compartirBloque(b, 'sueltas') }, `🖼️ Fotos sueltas rotuladas (${n})`) : null,
+    h('button', { type: 'button', onclick: () => copiarTexto(b.texto) }, '📋 Copiar texto')];
 }
 function bloqueOk(a, n) {
   if (f.tipo !== 'establecimientos') return null;
@@ -567,16 +639,13 @@ function bloqueOk(a, n) {
       } }, '✅ OK – actividad terminada'),
       h('p', { class: 'nota' }, 'Al dar OK puede enviar esta actividad con sus fotos por WhatsApp, sin cerrar el operativo.'));
   }
-  const texto = textoActividadWhatsApp(a, n);
-  const fotos = fotosDeActividad(a);
+  const b = bloqueActividad(a, n);
   return h('div', { class: 'panel whatsapp-actividad' },
     h('h4', {}, `📲 Enviar la actividad ${n} por WhatsApp`),
-    h('div', { class: 'acciones' },
-      h('button', { type: 'button', class: 'principal grande', onclick: () => compartirActividad(a, n) }, `📤 Compartir${fotos.length ? ` con ${fotos.length} foto(s)` : ''}`),
-      h('button', { type: 'button', onclick: () => copiarTexto(texto) }, '📋 Copiar texto'),
+    h('div', { class: 'acciones' }, ...botonesCompartir(b),
       h('button', { type: 'button', class: 'mini', onclick: () => { marcarOk(a, false); pintar(); } }, 'Ocultar')),
-    h('p', { class: 'nota' }, '«Compartir» abre WhatsApp con el texto y las fotos para elegir el grupo. El operativo sigue abierto: continúe con la siguiente actividad y, al final, envíe todo a verificación como siempre.'),
-    h('pre', { class: 'wa-texto' }, texto));
+    h('p', { class: 'nota' }, '«Compartir» abre WhatsApp con una sola imagen (todas las fotos numeradas) y el texto como pie: llega como un solo mensaje y no se desordena en el grupo. El operativo sigue abierto: continúe con la siguiente actividad y, al final, envíe todo a verificación como siempre.'),
+    h('pre', { class: 'wa-texto' }, b.texto));
 }
 const NOMBRE_ACT = { establecimientos: 'Establecimiento', espacio: 'Tramo o intervención', cerros: 'Actividad de monitoreo' };
 const AGREGAR = { establecimientos: '+ Agregar otro establecimiento', espacio: '+ Agregar otro tramo', cerros: '+ Agregar otra actividad' };
@@ -837,14 +906,6 @@ function panelProgramadas(locales) {
 async function copiarTexto(t) {
   try { await navigator.clipboard.writeText(t); aviso('Texto copiado: péguelo en WhatsApp'); } catch { aviso('No se pudo copiar: mantenga presionado el texto y cópielo', true); }
 }
-async function compartir(b) {
-  try {
-    const files = b.fotos.filter((x) => x.blob).map((x, i) => new File([x.blob], `${b.prefijo}-${i + 1}.jpg`, { type: 'image/jpeg' }));
-    if (files.length && navigator.canShare && navigator.canShare({ files, text: b.texto })) { await navigator.share({ files, text: b.texto }); return; }
-    if (navigator.share) { await navigator.share({ text: b.texto }); if (files.length) aviso('Se compartió el texto; agregue las fotos desde WhatsApp.'); return; }
-    await copiarTexto(b.texto);
-  } catch (e) { if (e?.name !== 'AbortError') aviso(e.message || 'No se pudo compartir', true); }
-}
 const SI_NO = (v) => (v === 'si' ? 'Sí' : 'No');
 function textoActividadLocal(tipo, g, a, n, fotos, nota) {
   const fecha = g.fecha ? g.fecha.split('-').reverse().join('/') : '—';
@@ -884,18 +945,20 @@ async function verWhatsApp(lid) {
     `👤 *Responsables:* ${[g.abogado, g.gestora].filter(Boolean).join(' · ') || '—'}`, (g.entidades || []).length ? `👥 *Acompañamiento:* ${g.entidades.join(', ')}` : null,
     '', `📋 *Actividades (${acts.length}):*`, ...acts.map((a, i) => `• ${i + 1}. ${a.nombre || a.tramo || (a.poligonos || []).join(', ') || ''}`), '',
     ...Object.entries(c).map(([k, v]) => `• ${k}: ${v}`), r.datos.cierre?.resumen ? `\n📝 *Cierre:* ${r.datos.cierre.resumen}` : null, nota].filter((x) => x !== null).join('\n');
-  const bloques = [{ clave: 'op', titulo: '🏁 Operativo completo', texto: resumen, fotos: fotos.filter((x) => x.es_cierre), prefijo: `${idTxt}-cierre` },
-    ...acts.map((a, i) => ({ clave: a.uid, titulo: `${i + 1}. ${(a.nombre || a.tramo || (a.poligonos || []).join(', ') || '').slice(0, 20)}`,
-      texto: textoActividadLocal(r.tipo, g, a, i + 1, deAct(a).length, nota), fotos: deAct(a), prefijo: `${idTxt}-actividad${i + 1}` }))];
+  const fechaTxt = g.fecha ? g.fecha.split('-').reverse().join('/') : '';
+  const nombreAct = (a) => a.nombre || a.tramo || (a.poligonos || []).join(', ') || '';
+  const bloques = [{ clave: 'op', pestana: '🏁 Operativo completo', texto: resumen, fotos: fotos.filter((x) => x.es_cierre && x.blob), prefijo: `ID${idTxt}-cierre`,
+    titulo: `ID ${idTxt} · Cierre del operativo`, subtitulo: [r.tipoNombre, fechaTxt].filter(Boolean).join(' · ') },
+  ...acts.map((a, i) => ({ clave: a.uid, pestana: `${i + 1}. ${nombreAct(a).slice(0, 20)}`,
+    texto: textoActividadLocal(r.tipo, g, a, i + 1, deAct(a).length, nota), fotos: deAct(a).filter((x) => x.blob), prefijo: `ID${idTxt}-actividad${i + 1}`,
+    titulo: `ID ${idTxt} · Actividad ${i + 1} de ${acts.length}`, subtitulo: [nombreAct(a), fechaTxt].filter(Boolean).join(' · ') }))];
   let sel = 'op';
   const cont = h('div', {});
   const pintarWa = () => {
     const b = bloques.find((x) => x.clave === sel);
     poner(cont,
-      h('div', { class: 'pestanas-act' }, bloques.map((x) => h('button', { type: 'button', class: x.clave === sel ? 'activa' : '', onclick: () => { sel = x.clave; pintarWa(); } }, x.titulo))),
-      h('div', { class: 'acciones' },
-        h('button', { type: 'button', class: 'principal grande', onclick: () => compartir(b) }, `📤 Compartir${b.fotos.length ? ` con ${b.fotos.length} foto(s)` : ''}`),
-        h('button', { type: 'button', onclick: () => copiarTexto(b.texto) }, '📋 Copiar texto')),
+      h('div', { class: 'pestanas-act' }, bloques.map((x) => h('button', { type: 'button', class: x.clave === sel ? 'activa' : '', onclick: () => { sel = x.clave; pintarWa(); } }, x.pestana))),
+      h('div', { class: 'acciones' }, ...botonesCompartir(b)),
       h('pre', { class: 'wa-texto' }, b.texto),
       b.fotos.length ? h('div', { class: 'fotos' }, b.fotos.map((x) => h('figure', { class: 'miniatura' }, h('img', { src: srcFoto(x), alt: 'Foto', loading: 'lazy' })))) : null);
   };
@@ -904,7 +967,7 @@ async function verWhatsApp(lid) {
     h('div', { class: 'acciones' }, h('button', { type: 'button', class: 'mini', onclick: () => inicio() }, '← Mis reportes')),
     h('div', { class: 'panel' }, h('h2', {}, `📲 Compartir en WhatsApp · ${idTxt}`),
       r.estado !== 'Confirmado' ? h('p', { class: 'chip alerta' }, 'Aún está pendiente de verificación: el texto lo indica al final.') : null,
-      h('p', { class: 'nota' }, 'Elija «Operativo completo» o una actividad y pulse «Compartir»: se abre WhatsApp con el texto y las fotos para elegir el grupo.'),
+      h('p', { class: 'nota' }, 'Elija «Operativo completo» o una actividad y pulse «Compartir»: se abre WhatsApp con UNA imagen (todas las fotos numeradas) y el texto como pie, para elegir el grupo. Así llega como un solo mensaje y no se desordena. Comparta una actividad a la vez.'),
       cont));
 }
 
