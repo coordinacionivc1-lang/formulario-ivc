@@ -2,7 +2,7 @@
 // Solo atiende el formulario y sus archivos; los datos van al buzón de Google y nunca se guardan aquí.
 // Rutas relativas: funciona igual en GitHub Pages (…/ivc-formulario/) y en el PC (/formulario.html).
 // Al cambiar archivos del formulario, suba este número: el celular baja todo junto y borra la copia anterior.
-const CACHE = 'ivc-formulario-v7';
+const CACHE = 'ivc-formulario-v8';
 const ARCHIVOS = ['formulario.html', 'formulario.js', 'reglas-formulario.js', 'config-formulario.js', 'formulario.css', 'estilos.css',
   'logos/alcaldia_mayor_bogota.png', 'manifest-formulario.json'];
 const base = new URL('./', self.location).pathname;
