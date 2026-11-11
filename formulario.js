@@ -250,16 +250,19 @@ async function enviarSobre(lid, o) {
   let r;
   const fotos = (await L.fotos(lid)).filter((x) => !x.quitar);
   const conError = fotos.filter((x) => x.error);
-  if (conError.length) { await actualizarReporte(lid, { enEspera: false, error: `Revise las fotos: ${conError[0].error}` }); return; }
+  // Las fotos nunca frenan el envío: una que no quedó guardada en el celular (sin archivo y sin copia en el PC)
+  // no se puede mandar; se omite y coordinación ve en el aplicativo cuántas fotos llegaron.
+  const enviables = fotos.filter((x) => !x.error || Number(x.sid) > 0 || x.sid === 'buzon');
+  if (conError.length) diagnostico(lid, 'fotos-omitidas', `${conError.length} foto(s) sin archivo se omitieron: ${conError[0].error}`);
   r = await L.reporte(lid);
   if (!r?.enEspera) return;
   const envio = (r.envio || 0) + 1;
   try {
     await buzon('buzon_enviar', conPase({ lid, envio, tipo: r.tipo, datos: r.datos,
-      fotos: fotos.map((x) => ({ fid: x.fid, sid: Number(x.sid) > 0 ? Number(x.sid) : null, actividad: x.actividad, es_cierre: x.es_cierre })) }), { ...o, espera: 60_000 });
+      fotos: enviables.map((x) => ({ fid: x.fid, sid: Number(x.sid) > 0 ? Number(x.sid) : null, actividad: x.actividad, es_cierre: x.es_cierre })) }), { ...o, espera: 60_000 });
   } catch (e) {
     // Una foto que el buzón no tiene (se borró allá): se vuelve a subir en la próxima vuelta.
-    if (e.codigo === 'FALTAN_FOTOS') { for (const x of fotos) if ((e.faltan || []).includes(x.fid)) await L.ponerFoto({ ...x, sid: null }); return; }
+    if (e.codigo === 'FALTAN_FOTOS') { for (const x of enviables) if ((e.faltan || []).includes(x.fid)) await L.ponerFoto({ ...x, sid: null }); return; }
     throw e;
   }
   await terminarEnviado(lid, true, envio);
@@ -340,6 +343,11 @@ function multiple(obj, campo, etiqueta, opciones, { etiquetaDe = (o) => o, valor
 
 // ---------- Fotos (se comprimen y se guardan en el celular; se suben solas cuando hay conexión) ----------
 async function comprimir(archivo) {
+  let reloj;
+  const limite = new Promise((ok) => { reloj = setTimeout(() => ok(archivo), 20_000); });
+  try { return await Promise.race([reducirFoto(archivo), limite]); } finally { clearTimeout(reloj); }
+}
+async function reducirFoto(archivo) {
   try {
     const img = await createImageBitmap(archivo, { imageOrientation: 'from-image' });
     const escala = Math.min(1, 1600 / Math.max(img.width, img.height));
@@ -390,7 +398,7 @@ function bloqueFotos({ actividad = null, cierre = false, max, min = null, titulo
         rep.fotos.push(foto);
         if (f === rep) pintar();
       }
-    } finally { subiendo--; }
+    } finally { subiendo = Math.max(0, subiendo - 1); }
     if (f === rep) await guardarLocal(); // la actividad debe llegar al servidor antes que sus fotos
   };
   poner(cont, propias.map((x) => h('figure', { class: 'miniatura' },
@@ -638,9 +646,9 @@ function pasoCierre() {
 // Revisión en el celular con las mismas reglas del servidor (funciona sin conexión).
 function revisar() {
   const v = validarFormulario(f.tipo, d(), cat);
-  for (const x of f.fotos.filter((y) => y.error)) v.errores.push(`Foto con problema: ${x.error}`);
-  // Las fotos que falten solo se avisan: el reporte se puede enviar y coordinación decide al revisarlo.
-  return { errores: v.errores, avisosFotos: erroresFotos(v.actividades, f.fotos, f.tipo, cat), consolidado: consolidado(f.tipo, v.actividades) };
+  // Las fotos (que falten o que no hayan quedado bien guardadas) solo se avisan: el reporte se puede enviar y coordinación decide.
+  const avisosFotos = [...f.fotos.filter((y) => y.error).map((x) => `Una foto tiene un problema y no se enviará: ${x.error}`), ...erroresFotos(v.actividades, f.fotos, f.tipo, cat)];
+  return { errores: v.errores, avisosFotos, consolidado: consolidado(f.tipo, v.actividades) };
 }
 function pasoVista(cont) {
   const r = revisar();
@@ -673,10 +681,10 @@ function pasoVista(cont) {
 async function enviar(e) {
   e.target.disabled = true;
   try {
-    if (!(await esperarSubidas())) { e.target.disabled = false; return aviso('Aún se están guardando fotografías. Espere un momento y vuelva a enviar.', true); }
+    if (!(await esperarSubidas())) { subiendo = 0; diagnostico(f.lid, 'fotos-guardando', 'Fotos que no terminaban de guardarse al enviar'); }
     await guardarLocal();
     const r = revisar();
-    if (r.errores.length) { e.target.disabled = false; pintar(); return aviso('Complete los datos que faltan antes de enviar.', true); }
+    if (r.errores.length) { diagnostico(f.lid, 'bloqueado', r.errores.join(' | ')); e.target.disabled = false; pintar(); return aviso(`Complete antes de enviar: ${r.errores.slice(0, 2).join(' · ')}${r.errores.length > 2 ? ' …' : ''}`, true); }
     const lid = f.lid;
     await actualizarReporte(lid, { enEspera: true, error: null });
     aviso('Enviando…');
