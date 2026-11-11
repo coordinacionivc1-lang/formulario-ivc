@@ -443,3 +443,8 @@ details.realizados summary { cursor: pointer; color: var(--tinta-2); font-weight
 .tarjeta-cierre.alerta { border-left: 4px solid var(--alerta); }
 .detalle-seg td.acciones { white-space: nowrap; display: flex; gap: 6px; }
 .buzon-llegando progress { display: block; width: 100%; max-width: 420px; height: 12px; margin-top: 6px; }
+
+/* Alertas activas del PC (Inicio y Operativos) */
+.alertas-activas ul { margin: 6px 0 0; padding-left: 18px; }
+.alertas-activas li { margin-bottom: 6px; }
+.alertas-activas .texto-alerta { white-space: pre-line; }

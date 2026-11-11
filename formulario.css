@@ -5,20 +5,20 @@
   --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
   --rojo: #B3121F; --rojo-2: #D32F3A; --rojo-suave: #FBE8E9; --amarillo: #FFD100; --amarillo-suave: #FFF6CC;
   --tinta: #231A1B; --tinta-2: #5C4B4D; --linea: #EBD9DA; --panel: #FFFFFF; --fondo: var(--amarillo-suave);
-  --ok: #2E7D4F; --alerta: #B7791F; --error: #7A1414; --radio: 8px; --sombra: 0 1px 3px rgba(35, 26, 27, .12);
+  --ok: #2E7D4F; --alerta: #8A5A10; --error: #7A1414; --radio: 8px; --sombra: 0 1px 3px rgba(35, 26, 27, .12);
   --f-titulo: inherit;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
     --fondo: #1A1011; --panel: #2A1719; --rojo-suave: #3A2023; --tinta: #F5ECEC; --tinta-2: #CDB9BB; --linea: #4A3033;
-    --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #2E7D4F; --alerta: #B7791F; --error: #F2707A;
+    --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #6FCF97; --alerta: #F0B95A; --error: #F2707A;
   }
 }
 :root[data-theme="dark"] {
   --cabecera: #B3121F; --cabecera-2: #B3121F; --accion: #B3121F; --accion-hover: #D32F3A;
   --fondo: #1A1011; --panel: #2A1719; --rojo-suave: #3A2023; --tinta: #F5ECEC; --tinta-2: #CDB9BB; --linea: #4A3033;
-  --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #2E7D4F; --alerta: #B7791F; --error: #F2707A;
+  --amarillo: #FFD84D; --amarillo-suave: #2E2410; --rojo: #F2707A; --rojo-2: #F58A92; --ok: #6FCF97; --alerta: #F0B95A; --error: #F2707A;
 }
 .escudo { box-shadow: none; width: 48px; height: 48px; }
 .barra h1 { font-size: 18px; font-weight: 700; }
@@ -54,7 +54,7 @@
 .form-ivc .fotos { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .form-ivc .miniatura { position: relative; margin: 0; width: 104px; height: 104px; border-radius: 8px; overflow: hidden; border: 1px solid var(--linea); }
 .form-ivc .miniatura img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.form-ivc .miniatura .quitar { position: absolute; top: 4px; right: 4px; padding: 2px 7px; background: rgba(0, 0, 0, .6); color: #fff; border: none; border-radius: 50%; }
+.form-ivc .miniatura .quitar { position: absolute; top: 2px; right: 2px; width: 36px; height: 36px; padding: 0; justify-content: center; background: rgba(0, 0, 0, .6); color: #fff; border: none; border-radius: 50%; }
 .form-ivc .agregar-foto { width: 104px; height: 104px; border: 2px dashed var(--rojo); border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--rojo); cursor: pointer; font-size: 13px; padding: 6px; }
 .form-ivc .agregar-foto input { display: none; }
 .form-ivc .etiqueta { font-weight: 600; font-size: 14px; margin-top: 10px; }
@@ -91,6 +91,27 @@
 .form-ivc .programadas .programada.atrasada { background: var(--rojo-suave); padding: 10px; border-radius: 6px; }
 
 /* Avance del envío: fijo arriba para que la gestora no cierre el formulario mientras suben las fotos. */
-.avance-envio { position: sticky; top: 0; z-index: 40; background: #FFF4D6; border-bottom: 2px solid #E0A800; padding: 10px 14px; font-size: 15px; }
+.avance-envio { position: sticky; top: 0; z-index: 40; background: #FFF4D6; color: #231A1B; border-bottom: 2px solid #E0A800; padding: 10px 14px; font-size: 15px; }
 .avance-envio[hidden] { display: none; }
 .avance-envio progress { display: block; width: 100%; height: 14px; margin: 6px 0; }
+
+/* Contraste (WCAG ≥ 4,5:1). Los avisos de la cabecera roja van sobre fondo blanco: «Con/Sin internet», «n en espera».
+   Verde #1E6B3F 6,5:1 · ámbar #7A4A00 7,5:1 · rojo #7A1414 10,8:1 (sobre #FFF). Igual en modo claro y oscuro.
+   Tema claro: --alerta #8A5A10 (5,9:1 sobre blanco; 5,0:1 sobre --rojo-suave). Tema oscuro: --ok #6FCF97 y --alerta #F0B95A
+   (≥ 8:1 sobre el panel). El aviso de envío fija su texto oscuro (15,5:1), también en modo oscuro. */
+.sesion .chip { background: #fff; border-color: #fff; }
+.sesion .chip.ok { color: #1E6B3F; }
+.sesion .chip.alerta { color: #7A4A00; }
+.sesion .chip.error { color: #7A1414; }
+.sesion .chip.neutro { color: #231A1B; }
+.sesion { flex-wrap: wrap; justify-content: flex-end; }
+
+/* Versión visible (para saber por teléfono qué versión tiene la gestora) y aviso de versión nueva. */
+.pie-version { text-align: center; color: var(--tinta-2); font-size: 12px; padding: 8px 0 72px; }
+.version-nueva { position: sticky; top: 0; z-index: 45; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center;
+  background: #FFD100; color: #231A1B; padding: 10px 14px; font-weight: 600; font-size: 15px; }
+.version-nueva button.mini { background: #fff; color: #231A1B; border: 1px solid #231A1B; min-height: 36px; }
+.cargando-lento { margin-top: 12px; border-left: 5px solid #B3121F; }
+
+/* Observación del PC que exige hablar con coordinación (p. ej. «Su corrección … no se aplicó»): visible y completa. */
+.form-ivc .chip.urgente { display: block; white-space: normal; border-radius: 8px; padding: 6px 10px; margin: 6px 0; font-size: 14px; }

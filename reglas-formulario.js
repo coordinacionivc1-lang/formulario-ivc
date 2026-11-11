@@ -49,7 +49,7 @@ export function validarFormulario(tipo, datos, cat) {
 
   const acts = Array.isArray(datos?.actividades) ? datos.actividades : [];
   if (!acts.length) errores.push('Registre al menos una actividad.');
-  const actividades = acts.slice(0, 60).map((a, i) => {
+  const actividades = acts.slice(0, 150).map((a, i) => {
     const n = i + 1;
     const err = (m) => errores.push(`Actividad ${n}: ${m}`);
     const base = { uid: txt(a?.uid, 20) || uid() };

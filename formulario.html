@@ -10,6 +10,12 @@
   <link rel="manifest" href="manifest-formulario.json">
   <meta name="theme-color" content="#B3121F">
   <link rel="apple-touch-icon" href="logos/alcaldia_mayor_bogota.png">
+  <!-- Si el formulario no abre en 15 s (archivo que no cargó, versión a medias), aparece el aviso de abajo.
+       Solo CSS: funciona aunque falle el JavaScript y no choca con la política de seguridad (CSP) del PC. -->
+  <style>
+    .cargando-lento { visibility: hidden; animation: ivc-aparecer 0s linear 15s forwards; }
+    @keyframes ivc-aparecer { to { visibility: visible; } }
+  </style>
 </head>
 <body>
   <div class="franja"></div>
@@ -24,7 +30,14 @@
     <div id="sesion" class="sesion"></div>
   </header>
   <div id="avance-envio" class="avance-envio" role="status" aria-live="polite" hidden></div>
-  <main id="vista" class="vista form-ivc"><p class="cargando">Cargando…</p></main>
+  <main id="vista" class="vista form-ivc">
+    <p class="cargando">Cargando…</p>
+    <div class="cargando-lento panel" role="alert">
+      <b>El formulario no terminó de abrir.</b>
+      <p>Conéctese a internet (datos o wifi), cierre el formulario por completo y ábralo de nuevo. Si sigue igual, avise a coordinación. Sus reportes guardados en el celular no se pierden.</p>
+    </div>
+  </main>
+  <footer id="version-formulario" class="pie-version">Formulario IVC</footer>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="dialogo"><form method="dialog" id="dialogo-form"></form></dialog>
   <script src="formulario.js" type="module"></script>
