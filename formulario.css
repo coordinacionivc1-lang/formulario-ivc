@@ -124,6 +124,17 @@
 .form-ivc .pestanas-inicio button.activa { background: #B3121F; border-color: #B3121F; color: #fff; }
 .form-ivc .pestanas-inicio button.constancias { border: 2px solid #0B5ED7; color: #0B5ED7; }
 .form-ivc .pestanas-inicio button.constancias.activa { background: #0B5ED7; color: #fff; }
-.form-ivc .reporte.constancia { flex-direction: column; border-left: 4px solid #0B5ED7; padding-left: 10px; }
-.form-ivc .reporte.constancia .acciones { margin: 4px 0 0; }
-.form-ivc .reporte.constancia button.azul { width: 100%; justify-content: center; }
+.form-ivc .constancia-mes { border: 1px solid var(--linea); border-radius: 10px; margin: 10px 0; background: #fff; overflow: hidden; }
+.form-ivc .constancia-mes > summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 12px; background: #EEF4FD; border-left: 5px solid #0B5ED7; list-style-position: inside; }
+.form-ivc .constancia-mes[open] > summary { border-bottom: 1px solid var(--linea); }
+.form-ivc .constancia-mes .mes-nombre { font-weight: 700; font-size: 16px; color: #0B3D91; }
+.form-ivc .constancia-mes .mes-cuenta { background: #0B5ED7; color: #fff; border-radius: 12px; padding: 1px 9px; font-size: 13px; font-weight: 700; }
+.form-ivc .constancia-mes .mes-tipos { font-size: 13px; margin-left: auto; }
+.form-ivc .constancia-fila { display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; border-top: 1px solid var(--linea); }
+.form-ivc .constancia-fila:first-of-type { border-top: 0; }
+.form-ivc .constancia-dia { display: flex; flex-direction: column; align-items: center; background: #0B5ED7; color: #fff; border-radius: 8px; padding: 4px 0; line-height: 1.1; }
+.form-ivc .constancia-dia b { font-size: 19px; }
+.form-ivc .constancia-dia span { font-size: 11px; text-transform: uppercase; }
+.form-ivc .constancia-info { min-width: 0; }
+.form-ivc .constancia-info .nota { margin: 1px 0; overflow-wrap: anywhere; }
+.form-ivc .constancia-fila button.azul { padding: 10px 12px; }

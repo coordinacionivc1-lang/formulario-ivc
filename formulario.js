@@ -12,7 +12,7 @@ import { constanciaPDF, nombreConstancia } from './constancia-pdf.js';
 // ===== LÓGICA PURA (sin pantalla ni almacenamiento): la prueba test/formulario-celular.test.js =====
 // Va dentro de formulario.js (y no en un archivo aparte) para que la publicación y la caché del celular no cambien.
 // Versión visible en el pie. Debe coincidir con CACHE de sw.js ('ivc-formulario-' + VERSION): súbalas juntas.
-const VERSION = 'v13';
+const VERSION = 'v14';
 // Nombre del archivo de una foto compartida a WhatsApp: «ID71562-actividad1-1.jpg» (letras, números, _ y -).
 function nombreArchivoCompartir(prefijo, i, tipo = '') {
   const limpio = String(prefijo || '').replace(/[^\w-]/g, '') || 'foto';
@@ -1069,6 +1069,7 @@ async function guardarConstancia(lid) {
   try { resultados = consolidado(r.tipo, validarFormulario(r.tipo, datos, cat).actividades); } catch { /* sin catálogos: va sin resultados */ }
   const c = { lid, usuarioId: r.usuarioId, tipo: r.tipo, tipoNombre: r.tipoNombre, enviadoEn: r.enviadoEn || null,
     orden: r.enviadoEn || r.ultimoIntento || r.actualizado || Date.now(),
+    firmadoEn: r.enviadoEn || r.ultimoIntento || r.actualizado || Date.now(),
     general: { ...(datos.general || {}) }, cierre: { hora_fin: datos.cierre?.hora_fin || '', resumen: datos.cierre?.resumen || '' },
     actividades: (datos.actividades || []).map((a) => lineaActividad(r.tipo, a)), consolidado: resultados,
     conFoto: fotosCierre.length > 0, jpeg: await jpegParaPDF(fotosCierre.find((x) => x.blob)?.blob) };
@@ -1111,21 +1112,49 @@ async function listaConstancias(locales) {
   }
   return lista.sort((a, b) => (b.orden || b.enviadoEn || 0) - (a.orden || a.enviadoEn || 0));
 }
-// Pestaña «Constancias de asistencia» del perfil de cada gestora: una fila por operativo con su botón azul.
+// Pestaña «Constancias de asistencia» del perfil de cada gestora, ordenada por mes (según la fecha del operativo).
+// El mes más reciente queda abierto y los anteriores plegados, para que no se vea saturado.
+const MESES_TXT = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+const ICONO_TIPO = { establecimientos: '🏪', espacio: '🛒', cerros: '⛰️' };
+const fechaConstancia = (c) => (/^\d{4}-\d{2}-\d{2}$/.test(c.general?.fecha || '') ? c.general.fecha
+  : new Date(c.orden || c.enviadoEn || Date.now()).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' }));
+function porMes(lista) {
+  const meses = new Map();
+  for (const c of lista) {
+    const k = fechaConstancia(c).slice(0, 7);
+    if (!meses.has(k)) meses.set(k, []);
+    meses.get(k).push(c);
+  }
+  const clave = (c) => `${fechaConstancia(c)} ${c.general?.hora_inicio || ''}`;
+  return [...meses.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([k, cs]) => ({ k, nombre: `${MESES_TXT[Number(k.slice(5, 7)) - 1]} ${k.slice(0, 4)}`, cs: cs.sort((a, b) => clave(b).localeCompare(clave(a))) }));
+}
 async function panelConstancias(locales) {
   let lista = [];
   let fallo = false;
   try { lista = await Promise.race([listaConstancias(locales), new Promise((ok, mal) => { setTimeout(() => mal(new Error('lento')), 8000); })]); } catch { fallo = true; }
-  const fila = (c) => h('div', { class: 'reporte constancia' },
-    h('div', {}, h('b', {}, `${c.tipoNombre || 'Operativo'} · ID ${c.general?.id_operativo || '—'}`),
-      h('div', { class: 'nota' }, `📅 ${c.general?.fecha ? c.general.fecha.split('-').reverse().join('/') : 'sin fecha'} · ⏰ ${[c.general?.hora_inicio, c.cierre?.hora_fin].filter(Boolean).join(' – ') || 'sin hora'}`),
-      h('div', { class: 'nota' }, `⚖️ Abogado(a): ${c.general?.abogado || '—'}`)),
-    h('div', { class: 'acciones' }, botonConstancia(c.lid, '📄 Descargar PDF', 'grande')));
+  const fila = (c) => {
+    const fe = fechaConstancia(c);
+    return h('div', { class: 'constancia-fila' },
+      h('div', { class: 'constancia-dia' }, h('b', {}, String(Number(fe.slice(8, 10)))), h('span', {}, MESES_TXT[Number(fe.slice(5, 7)) - 1].slice(0, 3).toLowerCase())),
+      h('div', { class: 'constancia-info' },
+        h('b', {}, `${ICONO_TIPO[c.tipo] || '📋'} ${c.tipoNombre || 'Operativo'}`),
+        h('div', { class: 'nota' }, `ID ${c.general?.id_operativo || '—'} · ⏰ ${[c.general?.hora_inicio, c.cierre?.hora_fin].filter(Boolean).join(' – ') || 'sin hora'}`),
+        h('div', { class: 'nota' }, `⚖️ ${c.general?.abogado || 'Abogado(a) sin informar'}`)),
+      botonConstancia(c.lid, '📄 PDF'));
+  };
+  const resumenTipos = (cs) => Object.entries(cs.reduce((m, c) => ({ ...m, [c.tipo]: (m[c.tipo] || 0) + 1 }), {}))
+    .map(([t, n]) => `${ICONO_TIPO[t] || '📋'} ${n}`).join('  ');
+  const meses = porMes(lista);
   return h('div', { class: 'panel' }, h('h2', {}, `📄 Constancias de asistencia (${lista.length})`),
-    h('p', { class: 'nota' }, 'Soporte para la cuenta de cobro: tipo de operativo, horas, abogado(a), resumen de cierre y foto de cierre (máximo dos hojas). Cada reporte que envía queda aquí, aunque coordinación ya lo haya confirmado. Si borra los datos del navegador o cambia de celular, se pierden: descárguelas apenas termine cada operativo.'),
+    h('p', { class: 'nota' }, 'Soporte para la cuenta de cobro, ordenado por mes del operativo. Cada reporte que envía queda aquí, aunque coordinación ya lo haya confirmado. Si borra los datos del navegador o cambia de celular, se pierden: descárguelas apenas termine cada operativo.'),
     fallo ? h('p', { class: 'chip alerta' }, 'El celular tardó en leer las constancias: salga de esta pestaña y vuelva a entrar.')
-      : lista.length ? lista.map(fila)
-        : h('p', { class: 'chip neutro' }, 'Aún no tiene constancias. Aparecen aquí apenas pulse «Enviar a verificación» en un reporte (aunque no haya señal).'));
+      : meses.length ? meses.map((m, i) => h('details', { class: 'constancia-mes', open: i === 0 },
+        h('summary', {}, h('span', { class: 'mes-nombre' }, `🗓️ ${m.nombre}`), h('span', { class: 'mes-cuenta' }, `${m.cs.length} constancia${m.cs.length === 1 ? '' : 's'}`),
+          h('span', { class: 'mes-tipos' }, resumenTipos(m.cs))),
+        m.cs.map(fila)))
+        : h('p', { class: 'chip neutro' }, 'Aún no tiene constancias. Aparecen aquí apenas pulse «Enviar a verificación» en un reporte (aunque no haya señal).'),
+    meses.length ? h('p', { class: 'nota' }, '🏪 Establecimientos · 🛒 Espacio público · ⛰️ Cerros orientales') : null);
 }
 
 function pintar() {

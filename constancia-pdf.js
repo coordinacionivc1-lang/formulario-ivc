@@ -88,6 +88,19 @@ export function duracion(ini, fin) {
   const h = Math.floor(min / 60), r = min % 60;
   return [h ? `${h} h` : null, r ? `${r} min` : null].filter(Boolean).join(' ') || '0 min';
 }
+const fechaHoraLarga = (d) => {
+  try { return new Date(d).toLocaleString('es-CO', { timeZone: 'America/Bogota', day: 'numeric', month: 'long', year: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch { return ''; }
+};
+// Código de control de la firma: resumen (FNV-1a de 64 bits) de los datos firmados. Si alguien cambia el ID, la
+// fecha, las horas, la gestora, el abogado, el resumen o la hora de firma, el código ya no coincide.
+export function codigoControl(c, firmado) {
+  const g = c?.general || {};
+  const texto = [c?.tipo, g.id_operativo, g.fecha, g.hora_inicio, c?.cierre?.hora_fin, g.gestora, g.abogado, c?.cierre?.resumen, new Date(firmado).getTime()].map((x) => String(x ?? '')).join('|');
+  let h = 0xcbf29ce484222325n;
+  for (const b of new TextEncoder().encode(texto)) h = ((h ^ BigInt(b)) * 0x100000001b3n) & 0xffffffffffffffffn;
+  const hex = h.toString(16).toUpperCase().padStart(16, '0');
+  return `IVC-${hex.slice(0, 4)}-${hex.slice(4, 8)}-${hex.slice(8, 12)}`;
+}
 const fechaHoraBog = (d) => {
   try { return new Date(d).toLocaleString('es-CO', { timeZone: 'America/Bogota', dateStyle: 'short', timeStyle: 'short' }); } catch { return ''; }
 };
@@ -270,12 +283,21 @@ export function constanciaPDF(c, { jpeg = null, generado = new Date() } = {}) {
     y += 18;
   }
 
-  // Firma: solo la del gestor(a) (el abogado no firma la constancia)
-  y += 50;
-  const fw = (ANCHO - 2 * M - 40) / 2;
-  linea(M, y, M + fw, NEGRO, 0.7);
-  texto(M, y + 12, recortar(limpiarTexto(g.gestora || ''), true, 9.5, fw), { negrita: true, tam: 9.5 });
-  texto(M, y + 24, 'Firma del gestor(a)', { tam: 8.5, col: GRIS });
+  // Sello de firma digital del gestor(a): quién firmó, fecha y hora, y un código de control calculado del contenido.
+  // Firma al enviar el reporte (enviadoEn); si aún no salió del celular, cuenta desde que pulsó «Enviar» (firmadoEn).
+  // El abogado no firma la constancia.
+  const firmado = c.enviadoEn || c.firmadoEn || generado;
+  const sw = 300, sh = 74, sx = M;
+  y += 18;
+  rect(sx, y, sw, sh, { borde: ROJO });
+  rect(sx + 3, y + 3, sw - 6, sh - 6, { borde: LINEA });
+  rect(sx + 3, y + 3, 5, sh - 6, { relleno: ROJO });
+  const tx = sx + 16, tw = sw - 26;
+  texto(tx, y + 18, 'FIRMADO DIGITALMENTE', { negrita: true, tam: 10.5, col: ROJO });
+  texto(tx, y + 32, recortar(limpiarTexto(`Por: ${g.gestora || 'Gestor(a)'}`), true, 9.5, tw), { negrita: true, tam: 9.5 });
+  texto(tx, y + 45, recortar(limpiarTexto(`Gestor(a) · Fecha y hora: ${fechaHoraLarga(firmado)}`), false, 8.5, tw), { tam: 8.5 });
+  texto(tx, y + 58, limpiarTexto(`Código de control: ${codigoControl(c, firmado)}`), { tam: 8.5, col: GRIS });
+  y += sh;
 
   // Pie de cada hoja
   const enviado = c.enviadoEn ? ` · Enviado a verificación el ${fechaHoraBog(c.enviadoEn)}` : '';
