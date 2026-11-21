@@ -12,7 +12,7 @@ import { constanciaPDF, nombreConstancia } from './constancia-pdf.js';
 // ===== LÓGICA PURA (sin pantalla ni almacenamiento): la prueba test/formulario-celular.test.js =====
 // Va dentro de formulario.js (y no en un archivo aparte) para que la publicación y la caché del celular no cambien.
 // Versión visible en el pie. Debe coincidir con CACHE de sw.js ('ivc-formulario-' + VERSION): súbalas juntas.
-const VERSION = 'v14';
+const VERSION = 'v15';
 // Nombre del archivo de una foto compartida a WhatsApp: «ID71562-actividad1-1.jpg» (letras, números, _ y -).
 function nombreArchivoCompartir(prefijo, i, tipo = '') {
   const limpio = String(prefijo || '').replace(/[^\w-]/g, '') || 'foto';
@@ -1231,6 +1231,8 @@ async function nuevoReporte(t, general = null) {
 async function aplicarEstados(estados) {
   if (!Array.isArray(estados)) return;
   for (const e of estados) {
+    // Coordinación eliminó el reporte (p. ej. una prueba): su constancia de asistencia también sale del celular.
+    if (e?.estado === 'Eliminado' && e.lid) await C.quitar(e.lid).catch(() => {});
     const r = await L.reporte(e.lid);
     const decision = decidirEstado(r, e, yo.id);
     if (!decision) continue;
