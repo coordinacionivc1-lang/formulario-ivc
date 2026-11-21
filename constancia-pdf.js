@@ -270,15 +270,12 @@ export function constanciaPDF(c, { jpeg = null, generado = new Date() } = {}) {
     y += 18;
   }
 
-  // Firmas
+  // Firma: solo la del gestor(a) (el abogado no firma la constancia)
   y += 50;
   const fw = (ANCHO - 2 * M - 40) / 2;
-  for (const [j, [rol, nombre]] of [['Gestor(a)', g.gestora], ['Abogado(a) responsable', g.abogado]].entries()) {
-    const fx = M + j * (fw + 40);
-    linea(fx, y, fx + fw, NEGRO, 0.7);
-    texto(fx, y + 12, recortar(limpiarTexto(nombre || ''), true, 9.5, fw), { negrita: true, tam: 9.5 });
-    texto(fx, y + 24, limpiarTexto(rol), { tam: 8.5, col: GRIS });
-  }
+  linea(M, y, M + fw, NEGRO, 0.7);
+  texto(M, y + 12, recortar(limpiarTexto(g.gestora || ''), true, 9.5, fw), { negrita: true, tam: 9.5 });
+  texto(M, y + 24, 'Firma del gestor(a)', { tam: 8.5, col: GRIS });
 
   // Pie de cada hoja
   const enviado = c.enviadoEn ? ` · Enviado a verificación el ${fechaHoraBog(c.enviadoEn)}` : '';
