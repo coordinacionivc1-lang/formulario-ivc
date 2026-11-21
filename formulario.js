@@ -7,11 +7,12 @@
 // recoge cuando se enciende, los revisa con las mismas reglas (reglas-formulario.js) y publica el estado en el buzón.
 import { validarFormulario, consolidado, erroresFotos, uid as uidSeguro } from './reglas-formulario.js';
 import { BUZON } from './config-formulario.js';
+import { constanciaPDF, nombreConstancia } from './constancia-pdf.js';
 
 // ===== LÓGICA PURA (sin pantalla ni almacenamiento): la prueba test/formulario-celular.test.js =====
 // Va dentro de formulario.js (y no en un archivo aparte) para que la publicación y la caché del celular no cambien.
 // Versión visible en el pie. Debe coincidir con CACHE de sw.js ('ivc-formulario-' + VERSION): súbalas juntas.
-const VERSION = 'v10';
+const VERSION = 'v11';
 // Nombre del archivo de una foto compartida a WhatsApp: «ID71562-actividad1-1.jpg» (letras, números, _ y -).
 function nombreArchivoCompartir(prefijo, i, tipo = '') {
   const limpio = String(prefijo || '').replace(/[^\w-]/g, '') || 'foto';
@@ -274,8 +275,8 @@ function abrirBD() {
   });
   return bdAbierta;
 }
-async function bd(almacen, modo, fn) {
-  const db = await abrirBD();
+async function bd(almacen, modo, fn, abrir = abrirBD) {
+  const db = await abrir();
   return new Promise((ok, mal) => {
     const t = db.transaction(almacen, modo);
     const req = fn(t.objectStore(almacen));
@@ -521,6 +522,7 @@ async function enviarSobre(lid, o) {
 // (si lo devuelve para corrección, se corrige aquí mismo y se reenvía).
 async function terminarEnviado(lid, avisar, envio) {
   const r = await actualizarReporte(lid, { enEspera: false, editable: false, sucio: false, envio, intentado: false, motivoEspera: null, estado: EN_BUZON, error: null, observaciones: null, enviadoEn: Date.now(), ultimoIntento: Date.now() });
+  guardarConstancia(lid).catch(() => {}); // copia para la constancia en PDF (si falla, no frena nada)
   if (avisar) aviso(`✅ Reporte ${r?.datos?.general?.id_operativo || ''} enviado.`);
   if (f?.lid === lid) {
     f = null;
@@ -1005,7 +1007,120 @@ function mostrarEnviado(r) {
     h('p', {}, `Operativo ${r.datos?.general?.id_operativo || ''} · ${r.datos?.actividades?.length || 0} actividad(es). Quedó en el buzón: llega al aplicativo de coordinación aunque el PC esté apagado (se recibe al encenderlo).`),
     h('dl', { class: 'resumen' }, Object.entries(c).map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
     h('div', { class: 'acciones' }, h('button', { class: 'principal grande', onclick: () => verWhatsApp(r.lid).catch((e) => aviso(e.message, true)) }, '📲 Compartir en WhatsApp'),
-      h('button', { onclick: () => inicio() }, 'Volver a mis reportes'))));
+      botonConstancia(r.lid, '📄 Descargar constancia de asistencia (PDF)', 'principal grande'),
+      h('button', { onclick: () => inicio() }, 'Volver a mis reportes')),
+    h('p', { class: 'nota' }, 'La constancia es el soporte de asistencia para la cuenta de cobro. También queda en «Mis reportes» → «Constancias de asistencia».')));
+}
+
+// ---------- Constancia de asistencia (PDF) ----------
+// Soporte para la cuenta de cobro: tipo de operativo, ID, fecha, horas, abogado, gestora, acompañamiento, actividades,
+// resultados, resumen de cierre y foto de cierre (máximo dos hojas; el PDF lo arma constancia-pdf.js, sin internet).
+// Al enviar se guarda una copia aparte (datos + foto de cierre en JPEG) en otra base del celular ('ivc-constancias'):
+// así la constancia se puede descargar aunque coordinación ya haya confirmado el reporte y su copia se haya borrado.
+// Es una base aparte para no cambiar la versión de la base de los reportes.
+const MAX_CONSTANCIAS = 60;
+let bdConstancias = null;
+function abrirConstancias() {
+  bdConstancias ||= new Promise((ok, mal) => {
+    const r = indexedDB.open('ivc-constancias', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('constancias', { keyPath: 'lid' });
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => { bdConstancias = null; mal(r.error); };
+  });
+  return bdConstancias;
+}
+const C = {
+  todas: async (usuarioId) => (await bd('constancias', 'readonly', (s) => s.getAll(), abrirConstancias))
+    .filter((x) => x.usuarioId === usuarioId).sort((a, b) => (b.enviadoEn || 0) - (a.enviadoEn || 0)),
+  una: (lid) => bd('constancias', 'readonly', (s) => s.get(lid), abrirConstancias),
+  poner: (x) => bd('constancias', 'readwrite', (s) => s.put(x), abrirConstancias),
+  quitar: (lid) => bd('constancias', 'readwrite', (s) => s.delete(lid), abrirConstancias),
+};
+// El PDF solo admite fotos JPEG: la foto de cierre se vuelve a guardar como JPEG de hasta 1400 px.
+async function jpegParaPDF(blob) {
+  if (!blob) return null;
+  try {
+    const img = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    const k = Math.min(1, 1400 / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    img.close();
+    const b = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.8));
+    c.width = 0; c.height = 0;
+    return b;
+  } catch { return null; }
+}
+function lineaActividad(tipo, a) {
+  if (tipo === 'establecimientos') return [a.nombre, a.direccion].filter(Boolean).join(' · ');
+  if (tipo === 'espacio') return [a.tramo, a.vendedores?.length ? `${a.vendedores.length} vendedor(es)` : null].filter(Boolean).join(' · ');
+  return [(a.poligonos || []).join(', '), a.observaciones].filter(Boolean).join(' · ');
+}
+// Toma del reporte enviado lo que va en la constancia y lo guarda aparte. Devuelve la constancia (o null).
+async function guardarConstancia(lid) {
+  const r = await L.reporte(lid);
+  if (!r?.enviadoEn) return null;
+  const datos = r.datos || {};
+  const fotosCierre = (await L.fotos(lid)).filter((x) => x.es_cierre && !x.quitar);
+  let resultados = {};
+  try { resultados = consolidado(r.tipo, validarFormulario(r.tipo, datos, cat).actividades); } catch { /* sin catálogos: va sin resultados */ }
+  const c = { lid, usuarioId: r.usuarioId, tipo: r.tipo, tipoNombre: r.tipoNombre, enviadoEn: r.enviadoEn,
+    general: { ...(datos.general || {}) }, cierre: { hora_fin: datos.cierre?.hora_fin || '', resumen: datos.cierre?.resumen || '' },
+    actividades: (datos.actividades || []).map((a) => lineaActividad(r.tipo, a)), consolidado: resultados,
+    conFoto: fotosCierre.length > 0, jpeg: await jpegParaPDF(fotosCierre.find((x) => x.blob)?.blob) };
+  if (!c.general.gestora) c.general.gestora = yo?.nombre || '';
+  await C.poner(c);
+  for (const x of (await C.todas(r.usuarioId)).slice(MAX_CONSTANCIAS)) await C.quitar(x.lid);
+  return c;
+}
+const esIPhone = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const descargarConstancia = unaVez(async (lid) => {
+  aviso('Preparando la constancia…');
+  let c = await C.una(lid);
+  const r = await L.reporte(lid);
+  // Si el reporte sigue en el celular y se reenvió después, la constancia se rehace con lo último enviado.
+  if (r?.enviadoEn && (!c || (c.enviadoEn || 0) < r.enviadoEn)) c = await guardarConstancia(lid);
+  if (!c) throw new Error('La constancia de este reporte ya no está en este celular.');
+  const { bytes } = constanciaPDF(c, { jpeg: c.jpeg ? new Uint8Array(await c.jpeg.arrayBuffer()) : null, generado: new Date() });
+  const nombre = nombreConstancia(c);
+  const archivo = new File([bytes], nombre, { type: 'application/pdf' });
+  // En iPhone la descarga desde la aplicación instalada no siempre funciona: se abre «Compartir» (Guardar en Archivos).
+  if (esIPhone() && navigator.canShare?.({ files: [archivo] })) {
+    try { await navigator.share({ files: [archivo] }); } catch (e) { if (e?.name !== 'AbortError') throw e; }
+    return;
+  }
+  const url = URL.createObjectURL(archivo);
+  const a = h('a', { href: url, download: nombre, hidden: true });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  aviso(`📄 Constancia descargada: ${nombre}`);
+});
+const botonConstancia = (lid, texto = '📄 Constancia PDF', clase = '') => h('button', { type: 'button', class: clase,
+  onclick: () => descargarConstancia(lid).catch((e) => aviso(e.message || 'No se pudo generar la constancia', true)) }, texto);
+// Lista de constancias guardadas en el celular (las más recientes primero; las anteriores en «Ver más»).
+async function panelConstancias(locales) {
+  let lista = [];
+  try {
+    lista = await C.todas(yo.id);
+    // Reportes enviados antes de esta versión: se les arma la constancia ahora, con lo que hay en el celular.
+    const tiene = new Set(lista.map((c) => c.lid));
+    for (const r of locales) {
+      if (!r.enviadoEn || r.editable || tiene.has(r.lid)) continue;
+      const c = await guardarConstancia(r.lid).catch(() => null);
+      if (c) lista.push(c);
+    }
+    lista.sort((a, b) => (b.enviadoEn || 0) - (a.enviadoEn || 0));
+  } catch { return null; }
+  if (!lista.length) return null;
+  const fila = (c) => h('div', { class: 'reporte' },
+    h('div', {}, h('b', {}, `${c.tipoNombre || 'Operativo'} · ID ${c.general?.id_operativo || '—'}`),
+      h('div', { class: 'nota' }, `${c.general?.fecha ? c.general.fecha.split('-').reverse().join('/') : 'sin fecha'} · ${[c.general?.hora_inicio, c.cierre?.hora_fin].filter(Boolean).join(' – ') || 'sin hora'} · abogado(a): ${c.general?.abogado || '—'}`)),
+    h('div', { class: 'acciones' }, botonConstancia(c.lid, '📄 Descargar PDF')));
+  const VISIBLES = 8;
+  return h('div', { class: 'panel' }, h('h2', {}, `📄 Constancias de asistencia (${lista.length})`),
+    h('p', { class: 'nota' }, 'Soporte para la cuenta de cobro (máximo dos hojas, con la foto de cierre). Quedan guardadas en este celular aunque coordinación ya haya confirmado el reporte; si borra los datos del navegador o cambia de celular, se pierden.'),
+    lista.slice(0, VISIBLES).map(fila),
+    lista.length > VISIBLES ? h('details', {}, h('summary', {}, `Ver ${lista.length - VISIBLES} más`), lista.slice(VISIBLES).map(fila)) : null);
 }
 
 function pintar() {
@@ -1085,7 +1200,14 @@ async function aplicarEstados(estados) {
     const r = await L.reporte(e.lid);
     const decision = decidirEstado(r, e, yo.id);
     if (!decision) continue;
-    if (decision.borrar) { if (f?.lid !== r.lid) await enFila(() => L.borrarReporte(r.lid)); continue; }
+    if (decision.borrar) {
+      if (f?.lid !== r.lid) {
+        // Antes de borrar la copia del celular, se asegura la constancia en PDF (reportes enviados antes de v11).
+        if (!(await C.una(r.lid).catch(() => null))) await guardarConstancia(r.lid).catch(() => {});
+        await enFila(() => L.borrarReporte(r.lid));
+      }
+      continue;
+    }
     await actualizarReporte(r.lid, decision.cambios);
     if (f?.lid === r.lid) {
       if (decision.cambios.cerradoPorCoordinacion) aviso(`Coordinación ya cerró este reporte (${e.estado}): los cambios que haga aquí no se enviarán.`, true);
@@ -1267,6 +1389,7 @@ async function inicio({ retomar = false } = {}) {
           : h('button', { type: 'button', class: r.editable && guia.accion !== 'intentar' ? 'principal' : '', onclick: () => abrir({ lid: r.lid }) },
             ['Requiere corrección', 'No se pudo procesar'].includes(estado) ? 'Corregir y reenviar' : r.editable && !r.enEspera ? 'Continuar' : 'Ver'),
         !r.editable ? h('button', { type: 'button', onclick: () => verWhatsApp(r.lid).catch((e) => aviso(e.message, true)) }, '📲 WhatsApp') : null,
+        !r.editable && r.enviadoEn ? botonConstancia(r.lid) : null,
         puedeDescartar(r) ? h('button', { type: 'button', class: 'mini', onclick: () => descartar(r).catch((e) => aviso(e.message, true)) },
           r.envio || r.intentado ? 'Descartar este reporte' : 'Descartar') : null));
   };
@@ -1280,7 +1403,9 @@ async function inicio({ retomar = false } = {}) {
           h('div', {}, h('b', {}, `${e.tipoNombre || 'Reporte'} · ID ${e.idOperativo || '—'}`), h('div', { class: 'nota' }, `${e.fecha || 'sin fecha'} · ${e.actividades ?? 0} actividad(es) · actualizado ${fechaHora(e.actualizado)}`),
             h('div', {}, chip(e.estado), e.sincronizacion && e.sincronizacion !== 'No aplica' ? [' ', chip(e.sincronizacion)] : null),
             e.observaciones ? h('div', { class: observacionUrgente(e.observaciones) ? 'chip error urgente' : 'nota alerta' }, `${observacionUrgente(e.observaciones) ? '⚠ ' : 'Observaciones: '}${e.observaciones}`) : null))),
-      ] : h('p', { class: 'nota' }, 'Aún no tiene reportes. Empiece eligiendo el tipo de operativo.')));
+      ] : h('p', { class: 'nota' }, 'Aún no tiene reportes. Empiece eligiendo el tipo de operativo.')),
+    // Si el celular tarda en leer las constancias, «Mis reportes» no espera más de 4 s (aparecen al volver a entrar).
+    await Promise.race([panelConstancias(locales), new Promise((ok) => { setTimeout(() => ok(null), 4000); })]));
   pintarConexion();
   // Al volver a entrar, se abre directamente el último reporte que estaba diligenciando, donde lo dejó.
   if (retomar) {

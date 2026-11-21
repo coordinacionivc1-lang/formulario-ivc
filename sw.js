@@ -6,8 +6,8 @@
 // propia caché; si alguno falla, la instalación se cancela y el celular sigue con la versión anterior completa.
 // Nunca se mezclan archivos de dos versiones. Al cambiar CUALQUIER archivo del formulario, suba este número
 // (y VERSION en formulario.js): es lo que hace que los celulares bajen la versión nueva.
-const CACHE = 'ivc-formulario-v10';
-const ARCHIVOS = ['formulario.html', 'formulario.js', 'reglas-formulario.js', 'config-formulario.js', 'formulario.css', 'estilos.css',
+const CACHE = 'ivc-formulario-v11';
+const ARCHIVOS = ['formulario.html', 'formulario.js', 'reglas-formulario.js', 'constancia-pdf.js', 'config-formulario.js', 'formulario.css', 'estilos.css',
   'logos/alcaldia_mayor_bogota.png', 'manifest-formulario.json'];
 const base = new URL('./', self.location).pathname;
 const RUTAS = new Set(ARCHIVOS.map((a) => base + a));
